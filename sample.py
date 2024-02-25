@@ -2,7 +2,7 @@ from asm8086 import *
 
 ### Sample Program ###
 
-asm = asm()
+asm = Asm()
 
 asm.PRINTCH(ord('A'))                # Print 'A'
 asm.JMPN("START")                    # Jump over next line to the label 'START'

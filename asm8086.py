@@ -1,5 +1,3 @@
-import re
-
 ### Glossary ###
 #
 # reg8b   - 8 bit register: AL, CL, ... AH, CH, ...
@@ -7,7 +5,6 @@ import re
 # val8b   - 8 bit value
 # val16b  - 16 bit value
 # dist8b  - jump distance from current position, range: -128 - +127
-# dist16b - jumb distance from current position, range: -32768 - +32767
 #
 
 ### Registers ###
@@ -30,12 +27,15 @@ BP = 0x0D
 SI = 0x0E
 DI = 0x0F
 
-class asm:
+class Asm:
+    _LABEL = '1:'
+    _REL8  = '2:'
+
     def __init__(self):
         self._IP = 0x100
         self._bytecode = []
         self._labels = {}
-    
+
     ### Assembly Instructions ###
 
     def NOP(self):
@@ -55,7 +55,7 @@ class asm:
         if type(val16b) == int:
             self._bytecode.extend([val16b & 0xFF, (val16b & 0xFF00) >> 8])
         else:
-            self._bytecode.extend(['2:' + val16b])
+            self._bytecode.extend([self._LABEL + val16b])
         self._IP += 3
 
     def INC(self, reg16b):
@@ -74,14 +74,10 @@ class asm:
         self._bytecode.extend([0x50 | (reg16b >> 4)])
         self._IP += 1
 
-    def JMPF(self, dist16b):
-        self._bytecode.extend([0xE9, dist16b & 0xFFFF])
-        self._IP += 3
-
     def JMPN(self, dist8b):
         self._bytecode.extend([0xEB])
         if type(dist8b) == str:
-            self._bytecode.extend(['3:' + str(self._IP) + ':' + dist8b])
+            self._bytecode.extend([self._REL8 + str(self._IP) + ':' + dist8b])
         else:
             self._bytecode.extend([dist8b & 0xFF])
         self._IP += 2
@@ -146,7 +142,8 @@ class asm:
         self.INT(0x21)
 
     def EXIT(self, code=0):
-        self.MOVR16(AX, code)
+        self.MOVR8(AH, 0x4C)
+        self.MOVR8(AL, code)
         self.INT(0x21)
 
     def _byte(self, value):
@@ -164,14 +161,11 @@ class asm:
         result = []
         for cell in self._bytecode:
             if type(cell) == str:
-                if cell[0] == '1':
-                    result.extend(self._byte(self._labels[cell[2:]]))
-                if cell[0] == '2':
+                if cell[:2] == self._LABEL:
                     result.extend(self._word(self._labels[cell[2:]]))
-                if cell[0] == '3':
-                    data = cell[2:]
-                    r = re.search(r'(.+):(.+)', data)
-                    result.extend(self._byte(self._labels[r.group(2)] - int(r.group(1))))
+                if cell[:2] == self._REL8:
+                    data = cell.split(':')
+                    result.extend(self._byte(self._labels[data[2]] - int(data[1])))
             else:
                 result.extend([cell])
         return result
